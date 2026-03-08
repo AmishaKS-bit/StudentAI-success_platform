@@ -26,7 +26,7 @@ const LoginPage = () => {
     const { error } = await signIn(email, password);
     setLoading(false);
     if (error) {
-      toast.error("Invalid email or password");
+      toast.error(error.message || "Invalid email or password");
     } else {
       toast.success("Welcome back!");
       navigate("/");
