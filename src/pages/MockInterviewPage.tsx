@@ -689,6 +689,8 @@ const MockInterviewPage = () => {
   };
 
   const endInterview = () => {
+    stopCamera();
+    stopVoiceRecording();
     setStarted(false);
     setMessages([]);
     setFeedback(null);
@@ -696,6 +698,9 @@ const MockInterviewPage = () => {
     setAllFeedbacks([]);
     setTimerActive(false);
     setTimer(0);
+    setResponseMode("text");
+    setIsCameraOn(false);
+    setIsRecording(false);
   };
 
   const scoreColor = (score: number) =>
