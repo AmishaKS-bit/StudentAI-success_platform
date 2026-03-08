@@ -539,14 +539,18 @@ const MockInterviewPage = () => {
     const nextIndex = questionIndex + 1;
 
     if (nextIndex < questions.length) {
-      // Per-answer feedback + next question
+      // Per-answer feedback + follow-up + next question
+      const currentQuestion = questions[questionIndex];
+      const followUp = getFollowUp(selectedRole, input);
+      const suggested = getSuggestedAnswer(selectedRole, currentQuestion);
+
       setIsTyping(true);
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
           {
             role: "interviewer",
-            content: answerFeedback.tip,
+            content: `${answerFeedback.tip}\n\n💡 **Suggested approach:** ${suggested}\n\n🔄 **Follow-up:** ${followUp}`,
             timestamp: new Date(),
             feedback: answerFeedback,
           },
@@ -562,7 +566,7 @@ const MockInterviewPage = () => {
               timestamp: new Date(),
             },
           ]);
-        }, 600);
+        }, 800);
       }, 1000 + Math.random() * 500);
 
       setQuestionIndex(nextIndex);
