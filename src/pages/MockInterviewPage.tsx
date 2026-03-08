@@ -834,6 +834,19 @@ const MockInterviewPage = () => {
             {/* Input */}
             {!feedback && (
               <div className="border-t border-border p-4">
+                {/* Response Mode Indicators */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] text-muted-foreground">Response mode:</span>
+                  <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                    ⌨️ Text
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] opacity-50 cursor-not-allowed" title="Voice input coming soon">
+                    🎤 Voice (soon)
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] opacity-50 cursor-not-allowed" title="Camera input coming soon">
+                    📹 Camera (soon)
+                  </Badge>
+                </div>
                 <div className="flex gap-2">
                   <Textarea
                     ref={textareaRef}
@@ -858,7 +871,7 @@ const MockInterviewPage = () => {
                   </Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 Write detailed answers for better feedback. Include examples and technical terms.
+                  💡 Write detailed answers for better feedback. Include examples, technical terms, and structure your response.
                 </p>
               </div>
             )}
