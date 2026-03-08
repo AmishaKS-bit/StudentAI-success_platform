@@ -477,6 +477,69 @@ const MockInterviewPage = () => {
     return () => clearInterval(interval);
   }, [timerActive]);
 
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
+      if (recognitionRef.current) recognitionRef.current.stop();
+    };
+  }, []);
+
+  const startVoiceRecording = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Speech recognition not supported. Use Chrome or Edge."); return; }
+    const recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    let finalT = input;
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) finalT += (finalT ? " " : "") + event.results[i][0].transcript;
+        else interim = event.results[i][0].transcript;
+      }
+      setInput(finalT + (interim ? " " + interim : ""));
+    };
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+    recognition.start();
+    recognitionRef.current = recognition;
+    setIsRecording(true);
+  };
+
+  const stopVoiceRecording = () => {
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    setIsRecording(false);
+  };
+
+  const toggleVoice = () => isRecording ? stopVoiceRecording() : startVoiceRecording();
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: "user" }, audio: false });
+      streamRef.current = stream;
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      setIsCameraOn(true);
+    } catch { alert("Camera access denied. Please allow camera access."); }
+  };
+
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setIsCameraOn(false);
+  };
+
+  const toggleCamera = () => isCameraOn ? stopCamera() : startCamera();
+
+  const selectMode = (mode: "text" | "voice" | "camera") => {
+    if (mode !== "voice" && isRecording) stopVoiceRecording();
+    if (mode !== "camera" && isCameraOn) stopCamera();
+    setResponseMode(mode);
+    if (mode === "camera") startCamera();
+  };
+
   const formatTime = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
