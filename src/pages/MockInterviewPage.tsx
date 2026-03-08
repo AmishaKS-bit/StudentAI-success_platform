@@ -441,6 +441,21 @@ function analyzeAnswer(answer: string, questionType: InterviewType): AnswerFeedb
   };
 }
 
+const bodyLanguageFeedbacks = [
+  "Good eye contact maintained. Your posture appears confident and engaged.",
+  "Try to maintain steadier eye contact with the camera. Sit up straight to project confidence.",
+  "Your gestures are natural and help convey your points. Keep it up!",
+  "Avoid looking down too much — maintain eye contact by looking at the camera lens.",
+  "Your facial expressions show engagement. Consider smiling more to appear approachable.",
+  "Good body positioning. Try using hand gestures to emphasize key points.",
+  "You appear calm and composed. Your body language supports your verbal communication well.",
+  "Consider nodding slightly while processing questions — it shows active listening.",
+];
+
+function getBodyLanguageFeedback(): string {
+  return bodyLanguageFeedbacks[Math.floor(Math.random() * bodyLanguageFeedbacks.length)];
+}
+
 const MockInterviewPage = () => {
   const [selectedRole, setSelectedRole] = useState("");
   const [interviewType, setInterviewType] = useState<InterviewType>("mixed");
