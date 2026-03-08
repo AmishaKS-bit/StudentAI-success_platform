@@ -1,4 +1,4 @@
-🎓 StudentAI-Success Platform
+###🎓 StudentAI-Success Platform
 
 StudentAI-Success Platform is an AI-powered web application designed to help students track learning progress, practice interviews, and improve skills through personalized analytics and dashboards.
 
