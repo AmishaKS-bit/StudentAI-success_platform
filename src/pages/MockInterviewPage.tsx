@@ -625,7 +625,7 @@ const MockInterviewPage = () => {
           ...prev,
           {
             role: "interviewer",
-            content: `${answerFeedback.tip}\n\n💡 **Suggested approach:** ${suggested}\n\n🔄 **Follow-up:** ${followUp}`,
+            content: `${answerFeedback.tip}\n\n💡 **Suggested approach:** ${suggested}${isCameraOn ? `\n\n📹 **Body Language:** ${getBodyLanguageFeedback()}` : ""}\n\n🔄 **Follow-up:** ${followUp}`,
             timestamp: new Date(),
             feedback: answerFeedback,
           },
