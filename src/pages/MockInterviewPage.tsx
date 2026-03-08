@@ -905,23 +905,115 @@ const MockInterviewPage = () => {
             {/* Input */}
             {!feedback && (
               <div className="border-t border-border p-4">
-                {/* Response Mode Indicators */}
-                <div className="flex items-center gap-2 mb-2">
+                {/* Response Mode Selector */}
+                <div className="flex items-center gap-2 mb-3">
                   <span className="text-[11px] text-muted-foreground">Response mode:</span>
-                  <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                  <button
+                    onClick={() => selectMode("text")}
+                    className={`flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition-all
+                      ${responseMode === "text" ? "bg-primary/10 text-primary border border-primary/30" : "bg-secondary text-muted-foreground border border-transparent hover:bg-muted"}`}
+                  >
                     ⌨️ Text
-                  </Badge>
-                  <Badge variant="outline" className="text-[10px] opacity-50 cursor-not-allowed" title="Voice input coming soon">
-                    🎤 Voice (soon)
-                  </Badge>
-                  <Badge variant="outline" className="text-[10px] opacity-50 cursor-not-allowed" title="Camera input coming soon">
-                    📹 Camera (soon)
-                  </Badge>
+                  </button>
+                  <button
+                    onClick={() => selectMode("voice")}
+                    className={`flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition-all
+                      ${responseMode === "voice" ? "bg-primary/10 text-primary border border-primary/30" : "bg-secondary text-muted-foreground border border-transparent hover:bg-muted"}`}
+                  >
+                    🎤 Voice
+                  </button>
+                  <button
+                    onClick={() => selectMode("camera")}
+                    className={`flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium transition-all
+                      ${responseMode === "camera" ? "bg-primary/10 text-primary border border-primary/30" : "bg-secondary text-muted-foreground border border-transparent hover:bg-muted"}`}
+                  >
+                    📹 Camera
+                  </button>
                 </div>
+
+                {/* Camera Preview */}
+                {responseMode === "camera" && (
+                  <div className="mb-3 flex items-start gap-3">
+                    <div className="relative rounded-lg overflow-hidden bg-foreground/5 border border-border" style={{ width: 160, height: 120 }}>
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                        style={{ transform: "scaleX(-1)" }}
+                      />
+                      {!isCameraOn && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                          <VideoOff className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                      )}
+                      {isCameraOn && (
+                        <div className="absolute top-1.5 right-1.5">
+                          <span className="flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-destructive" />
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground">
+                        📹 Camera is {isCameraOn ? "active" : "off"}. Your video is used for body language analysis feedback.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleCamera}
+                        className="mt-2 text-xs"
+                      >
+                        {isCameraOn ? <><VideoOff className="h-3 w-3 mr-1" /> Stop Camera</> : <><Video className="h-3 w-3 mr-1" /> Start Camera</>}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Voice Recording Indicator */}
+                {responseMode === "voice" && isRecording && (
+                  <div className="mb-3 flex items-center gap-3 rounded-lg bg-destructive/5 border border-destructive/20 px-4 py-2.5">
+                    <span className="flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-destructive opacity-75" />
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive" />
+                    </span>
+                    <span className="text-sm text-destructive font-medium">Recording... Speak your answer</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={stopVoiceRecording}
+                      className="ml-auto text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+                    >
+                      <MicOff className="h-3 w-3 mr-1" /> Stop
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
+                  {/* Mic button for voice mode */}
+                  {responseMode === "voice" && (
+                    <Button
+                      onClick={toggleVoice}
+                      variant={isRecording ? "destructive" : "outline"}
+                      className="self-end shrink-0"
+                      title={isRecording ? "Stop recording" : "Start recording"}
+                    >
+                      {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </Button>
+                  )}
+
                   <Textarea
                     ref={textareaRef}
-                    placeholder="Type your answer... (Enter to send, Shift+Enter for new line)"
+                    placeholder={
+                      responseMode === "voice"
+                        ? "Click 🎤 to speak, or type here. Your speech will appear as text..."
+                        : responseMode === "camera"
+                        ? "Type your answer while on camera for body language analysis..."
+                        : "Type your answer... (Enter to send, Shift+Enter for new line)"
+                    }
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -934,7 +1026,10 @@ const MockInterviewPage = () => {
                     disabled={isTyping}
                   />
                   <Button
-                    onClick={submitAnswer}
+                    onClick={() => {
+                      if (isRecording) stopVoiceRecording();
+                      submitAnswer();
+                    }}
                     disabled={!input.trim() || isTyping}
                     className="gradient-primary text-primary-foreground self-end"
                   >
@@ -942,7 +1037,9 @@ const MockInterviewPage = () => {
                   </Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 Write detailed answers for better feedback. Include examples, technical terms, and structure your response.
+                  {responseMode === "voice" && "🎤 Click the mic button to start speaking. Your speech is transcribed to text in real-time."}
+                  {responseMode === "camera" && "📹 Your camera feed enables body language feedback. Answer via text while on camera."}
+                  {responseMode === "text" && "💡 Write detailed answers for better feedback. Include examples, technical terms, and structure your response."}
                 </p>
               </div>
             )}
