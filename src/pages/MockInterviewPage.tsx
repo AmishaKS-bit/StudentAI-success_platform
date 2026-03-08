@@ -594,9 +594,13 @@ const MockInterviewPage = () => {
   const submitAnswer = () => {
     if (!input.trim() || isTyping) return;
 
+    // Stop recording if active
+    if (isRecording) stopVoiceRecording();
+
+    const answerMethod = responseMode === "voice" ? " 🎤" : responseMode === "camera" ? " 📹" : "";
     const userMessage: Message = {
       role: "user",
-      content: input,
+      content: input + answerMethod,
       timestamp: new Date(),
     };
 
