@@ -3,7 +3,8 @@ import { AppLayout } from "@/components/AppLayout";
 import { PageHeader } from "@/components/PageHeader";
 import {
   MessageSquare, Send, Bot, User, RotateCcw, ThumbsUp,
-  Zap, Brain, Users, ChevronRight, Award, Clock, Loader2
+  Zap, Brain, Users, ChevronRight, Award, Clock, Loader2,
+  Mic, MicOff, Video, VideoOff, Camera
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
