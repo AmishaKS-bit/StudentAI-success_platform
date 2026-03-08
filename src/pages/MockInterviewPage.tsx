@@ -293,6 +293,96 @@ const tips: Record<string, string[]> = {
   ],
 };
 
+const followUpQuestions: Record<string, string[]> = {
+  "Frontend Developer": [
+    "Can you explain how you'd handle that in a production environment?",
+    "What trade-offs did you consider with that approach?",
+    "How would this scale with a larger codebase?",
+    "Can you walk me through the performance implications?",
+    "How would you test this implementation?",
+    "What alternative approaches did you consider?",
+    "How would this work on mobile devices?",
+    "Can you describe a real scenario where you applied this?",
+  ],
+  "Backend Developer": [
+    "How would you handle error cases in this approach?",
+    "What about data consistency in a distributed system?",
+    "How would you monitor this in production?",
+    "Can you explain the security implications?",
+    "What would change if you needed 10x the throughput?",
+    "How would you handle backward compatibility?",
+    "What database optimizations would you apply?",
+    "How would you document this for your team?",
+  ],
+  "Data Scientist": [
+    "How would you validate this model's results?",
+    "What if the data distribution changes over time?",
+    "How would you explain these findings to a non-technical stakeholder?",
+    "What ethical considerations should we keep in mind?",
+    "How would you handle class imbalance in this case?",
+    "What metrics would you track in production?",
+    "Can you walk me through your feature selection process?",
+    "How would you A/B test this model?",
+  ],
+  "Full Stack Developer": [
+    "How would you handle authentication across the stack?",
+    "What caching strategy would you use?",
+    "How would you structure the API for mobile clients too?",
+    "Can you explain your deployment strategy?",
+    "How would you handle real-time updates?",
+    "What testing strategy covers both frontend and backend?",
+    "How would you handle migrations in production?",
+    "What monitoring would you set up?",
+  ],
+  "DevOps Engineer": [
+    "How would you handle a rollback scenario?",
+    "What's your approach to secret management?",
+    "How would you implement blue-green deployments?",
+    "Can you explain your disaster recovery strategy?",
+    "How would you handle auto-scaling?",
+    "What observability tools would you use?",
+    "How would you ensure compliance in this setup?",
+    "What would your incident response process look like?",
+  ],
+};
+
+const suggestedAnswers: Record<string, Record<string, string>> = {
+  "Frontend Developer": {
+    "var, let, const": "var is function-scoped with hoisting, let is block-scoped and can be reassigned, const is block-scoped and cannot be reassigned. In modern JavaScript, prefer const by default, use let when reassignment is needed, and avoid var due to its confusing scoping behavior.",
+    "Virtual DOM": "The Virtual DOM is a lightweight JavaScript representation of the real DOM. React uses it to efficiently update the UI — when state changes, React creates a new Virtual DOM tree, diffs it against the previous one (reconciliation), and applies only the minimal necessary changes to the real DOM.",
+    "default": "Start with a clear definition, then explain the 'why' and 'how', give a concrete code example, and discuss trade-offs or alternatives.",
+  },
+  "Backend Developer": {
+    "RESTful": "REST APIs follow principles like statelessness, resource-based URLs, standard HTTP methods (GET, POST, PUT, DELETE), proper status codes, and HATEOAS. Each endpoint represents a resource, and the API should be predictable, consistent, and well-documented.",
+    "default": "Begin with the core concept, explain implementation details with specific technology choices, discuss scalability considerations, and mention monitoring/error handling.",
+  },
+  "Data Scientist": {
+    "supervised": "Supervised learning uses labeled data to train models — the algorithm learns a mapping from inputs to known outputs (e.g., classification, regression). Unsupervised learning finds patterns in unlabeled data (e.g., clustering, dimensionality reduction). Semi-supervised and self-supervised approaches bridge the gap.",
+    "default": "Define the concept clearly, explain the mathematical intuition if applicable, discuss practical applications, and mention evaluation approaches.",
+  },
+  "Full Stack Developer": {
+    "default": "Cover both frontend and backend perspectives, explain data flow end-to-end, discuss your technology choices and trade-offs, and mention testing and deployment considerations.",
+  },
+  "DevOps Engineer": {
+    "default": "Explain the infrastructure pattern, discuss automation approaches, mention monitoring and alerting, and consider security and compliance implications.",
+  },
+};
+
+function getFollowUp(role: string, answer: string): string {
+  const pool = followUpQuestions[role] || followUpQuestions["Full Stack Developer"];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function getSuggestedAnswer(role: string, question: string): string {
+  const roleAnswers = suggestedAnswers[role] || suggestedAnswers["Full Stack Developer"];
+  for (const [key, answer] of Object.entries(roleAnswers)) {
+    if (key !== "default" && question.toLowerCase().includes(key.toLowerCase())) {
+      return answer;
+    }
+  }
+  return roleAnswers["default"] || "Structure your answer with a clear introduction, technical details, examples, and conclusion.";
+}
+
 function analyzeAnswer(answer: string, questionType: InterviewType): AnswerFeedback {
   const words = answer.trim().split(/\s+/);
   const wordCount = words.length;
@@ -449,14 +539,18 @@ const MockInterviewPage = () => {
     const nextIndex = questionIndex + 1;
 
     if (nextIndex < questions.length) {
-      // Per-answer feedback + next question
+      // Per-answer feedback + follow-up + next question
+      const currentQuestion = questions[questionIndex];
+      const followUp = getFollowUp(selectedRole, input);
+      const suggested = getSuggestedAnswer(selectedRole, currentQuestion);
+
       setIsTyping(true);
       setTimeout(() => {
         setMessages((prev) => [
           ...prev,
           {
             role: "interviewer",
-            content: answerFeedback.tip,
+            content: `${answerFeedback.tip}\n\n💡 **Suggested approach:** ${suggested}\n\n🔄 **Follow-up:** ${followUp}`,
             timestamp: new Date(),
             feedback: answerFeedback,
           },
@@ -472,7 +566,7 @@ const MockInterviewPage = () => {
               timestamp: new Date(),
             },
           ]);
-        }, 600);
+        }, 800);
       }, 1000 + Math.random() * 500);
 
       setQuestionIndex(nextIndex);
@@ -740,6 +834,19 @@ const MockInterviewPage = () => {
             {/* Input */}
             {!feedback && (
               <div className="border-t border-border p-4">
+                {/* Response Mode Indicators */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] text-muted-foreground">Response mode:</span>
+                  <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                    ⌨️ Text
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] opacity-50 cursor-not-allowed" title="Voice input coming soon">
+                    🎤 Voice (soon)
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] opacity-50 cursor-not-allowed" title="Camera input coming soon">
+                    📹 Camera (soon)
+                  </Badge>
+                </div>
                 <div className="flex gap-2">
                   <Textarea
                     ref={textareaRef}
@@ -764,7 +871,7 @@ const MockInterviewPage = () => {
                   </Button>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-2">
-                  💡 Write detailed answers for better feedback. Include examples and technical terms.
+                  💡 Write detailed answers for better feedback. Include examples, technical terms, and structure your response.
                 </p>
               </div>
             )}
