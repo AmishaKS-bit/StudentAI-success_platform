@@ -1,122 +1,526 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { PageHeader } from "@/components/PageHeader";
-import { MessageSquare, Send, Bot, User, Star } from "lucide-react";
+import {
+  MessageSquare, Send, Bot, User, RotateCcw, ThumbsUp,
+  Zap, Brain, Users, ChevronRight, Award, Clock, Loader2
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 interface Message {
-  role: "interviewer" | "user";
+  role: "interviewer" | "user" | "system";
   content: string;
+  timestamp: Date;
+  feedback?: AnswerFeedback;
 }
 
-interface Feedback {
+interface AnswerFeedback {
   technical: number;
   communication: number;
   confidence: number;
+  tip: string;
+}
+
+interface FinalFeedback {
+  technical: number;
+  communication: number;
+  confidence: number;
+  overall: number;
   strengths: string[];
   improvements: string[];
   betterAnswer: string;
+  totalQuestions: number;
+  answeredQuestions: number;
 }
 
-const interviewQuestions: Record<string, string[]> = {
-  "Frontend Developer": [
-    "Explain the difference between var, let, and const in JavaScript.",
-    "What is the Virtual DOM and how does React use it?",
-    "How would you optimize the performance of a React application?",
-    "Describe the CSS Box Model.",
-    "Tell me about a challenging project you worked on and how you overcame obstacles.",
-    "How do you handle state management in large React applications?",
-    "What are Web Vitals and why do they matter?",
-    "How do you ensure cross-browser compatibility?",
+type InterviewType = "technical" | "behavioral" | "mixed";
+type Difficulty = "easy" | "medium" | "hard";
+
+const questionBank: Record<string, Record<InterviewType, Record<Difficulty, string[]>>> = {
+  "Frontend Developer": {
+    technical: {
+      easy: [
+        "What is the difference between var, let, and const?",
+        "Explain what the DOM is.",
+        "What are semantic HTML elements? Give examples.",
+        "What is the CSS Box Model?",
+      ],
+      medium: [
+        "How does the Virtual DOM work in React?",
+        "Explain closures in JavaScript with an example.",
+        "What is the difference between useEffect and useLayoutEffect?",
+        "How would you implement lazy loading in a React app?",
+        "Explain the concept of CSS specificity.",
+        "What are React hooks and why were they introduced?",
+      ],
+      hard: [
+        "Design a real-time collaborative text editor architecture.",
+        "How would you implement server-side rendering from scratch?",
+        "Explain the React fiber reconciliation algorithm.",
+        "How would you optimize a React app that renders 10,000 list items?",
+      ],
+    },
+    behavioral: {
+      easy: [
+        "Tell me about yourself and your interest in frontend development.",
+        "Why do you want to work as a frontend developer?",
+      ],
+      medium: [
+        "Describe a challenging bug you fixed and what you learned.",
+        "Tell me about a time you had to meet a tight deadline.",
+        "How do you stay updated with new frontend technologies?",
+        "Describe a situation where you disagreed with a design decision.",
+      ],
+      hard: [
+        "Tell me about a time you had to refactor a large legacy codebase.",
+        "Describe how you mentored a junior developer through a difficult project.",
+      ],
+    },
+    mixed: { easy: [], medium: [], hard: [] },
+  },
+  "Backend Developer": {
+    technical: {
+      easy: [
+        "What is an API and how does it work?",
+        "Explain the difference between GET and POST requests.",
+        "What is a database index?",
+      ],
+      medium: [
+        "Explain RESTful API design principles.",
+        "What is the difference between SQL and NoSQL databases? When would you use each?",
+        "How do you handle authentication vs authorization?",
+        "Explain database normalization and its forms.",
+        "What is middleware in Express/Node.js?",
+        "How would you design a rate limiter?",
+      ],
+      hard: [
+        "Design a URL shortening service like bit.ly.",
+        "How would you implement a message queue system?",
+        "Explain CAP theorem and its practical implications.",
+        "How would you handle distributed transactions across microservices?",
+      ],
+    },
+    behavioral: {
+      easy: [
+        "What drew you to backend development?",
+        "How do you approach learning new technologies?",
+      ],
+      medium: [
+        "Describe a time you debugged a complex production issue.",
+        "Tell me about a system you designed that you're proud of.",
+        "How do you handle conflicting priorities from stakeholders?",
+      ],
+      hard: [
+        "Tell me about a time a production system you built failed. What happened?",
+        "Describe how you led a major architectural migration.",
+      ],
+    },
+    mixed: { easy: [], medium: [], hard: [] },
+  },
+  "Data Scientist": {
+    technical: {
+      easy: [
+        "What is the difference between supervised and unsupervised learning?",
+        "Explain what a confusion matrix is.",
+        "What is the purpose of train-test split?",
+      ],
+      medium: [
+        "How do you handle missing data in a dataset?",
+        "Explain the bias-variance tradeoff.",
+        "What is overfitting and how do you prevent it?",
+        "Explain cross-validation and why it's important.",
+        "What evaluation metrics would you use for imbalanced classification?",
+        "How does gradient descent work?",
+      ],
+      hard: [
+        "Explain how transformers work in NLP.",
+        "Design an ML pipeline for a recommendation system.",
+        "How would you detect and handle concept drift in production?",
+        "Explain the math behind backpropagation.",
+      ],
+    },
+    behavioral: {
+      easy: [
+        "What excites you about data science?",
+        "Describe your favorite data project.",
+      ],
+      medium: [
+        "Tell me about a time your analysis led to a business decision.",
+        "How do you communicate complex findings to non-technical stakeholders?",
+        "Describe a project where data quality was a major challenge.",
+      ],
+      hard: [
+        "Tell me about a time your model's predictions were wrong and the impact.",
+        "How do you handle ethical concerns in ML models?",
+      ],
+    },
+    mixed: { easy: [], medium: [], hard: [] },
+  },
+  "Full Stack Developer": {
+    technical: {
+      easy: [
+        "What is the difference between frontend and backend?",
+        "Explain what an ORM is.",
+        "What is version control and why is it important?",
+      ],
+      medium: [
+        "How do you design a REST API for a blog application?",
+        "Explain how authentication with JWT tokens works.",
+        "What are WebSockets and when would you use them?",
+        "How do you handle database migrations in production?",
+        "Explain the concept of server-side rendering vs client-side rendering.",
+      ],
+      hard: [
+        "Design the architecture for a real-time chat application.",
+        "How would you implement a CI/CD pipeline from scratch?",
+        "Explain how you'd scale a full-stack app from 100 to 1M users.",
+      ],
+    },
+    behavioral: {
+      easy: [
+        "Why do you prefer full-stack over specializing?",
+        "How do you manage your time between frontend and backend tasks?",
+      ],
+      medium: [
+        "Tell me about a project where you owned the entire stack.",
+        "Describe a time you had to quickly learn a new technology for a project.",
+        "How do you prioritize features in a sprint?",
+      ],
+      hard: [
+        "Describe how you handled a major production outage.",
+        "Tell me about a time you had to make a critical architecture decision with incomplete information.",
+      ],
+    },
+    mixed: { easy: [], medium: [], hard: [] },
+  },
+  "DevOps Engineer": {
+    technical: {
+      easy: [
+        "What is CI/CD?",
+        "Explain the difference between a container and a virtual machine.",
+        "What is Infrastructure as Code?",
+      ],
+      medium: [
+        "How does Docker networking work?",
+        "Explain Kubernetes pods, services, and deployments.",
+        "How would you set up monitoring for a microservices architecture?",
+        "What is a blue-green deployment?",
+        "How do you manage secrets in a CI/CD pipeline?",
+      ],
+      hard: [
+        "Design a multi-region disaster recovery strategy.",
+        "How would you implement a zero-downtime migration for a database?",
+        "Explain service mesh architecture and when to use it.",
+      ],
+    },
+    behavioral: {
+      easy: [
+        "What attracted you to DevOps?",
+        "How do you handle on-call responsibilities?",
+      ],
+      medium: [
+        "Describe a time you automated a painful manual process.",
+        "Tell me about a production incident and how you resolved it.",
+        "How do you balance security with developer velocity?",
+      ],
+      hard: [
+        "Describe how you built a platform team's culture from scratch.",
+        "Tell me about the most complex infrastructure challenge you've solved.",
+      ],
+    },
+    mixed: { easy: [], medium: [], hard: [] },
+  },
+};
+
+// Populate mixed questions from technical + behavioral
+Object.keys(questionBank).forEach((role) => {
+  (["easy", "medium", "hard"] as Difficulty[]).forEach((diff) => {
+    questionBank[role].mixed[diff] = [
+      ...questionBank[role].technical[diff],
+      ...questionBank[role].behavioral[diff],
+    ];
+  });
+});
+
+const roles = Object.keys(questionBank);
+
+const feedbackTemplates = {
+  excellent: [
+    "Excellent answer! You demonstrated strong understanding.",
+    "Great response! Very thorough and well-structured.",
+    "Impressive! You covered the key points effectively.",
   ],
-  "Backend Developer": [
-    "Explain RESTful API design principles.",
-    "What is the difference between SQL and NoSQL databases?",
-    "How do you handle authentication and authorization?",
-    "Describe a time you debugged a complex production issue.",
-    "What is middleware and how is it used?",
-    "Explain database indexing and when to use it.",
-    "How do you design for scalability?",
-    "What are microservices and when would you use them?",
+  good: [
+    "Good answer. You covered the main concepts well.",
+    "Solid response. A few more details would strengthen it.",
+    "Nice job! Consider adding a real-world example next time.",
   ],
-  "Data Scientist": [
-    "Explain the difference between supervised and unsupervised learning.",
-    "How do you handle missing data in a dataset?",
-    "What is overfitting and how do you prevent it?",
-    "Describe a data analysis project you are proud of.",
-    "Explain the bias-variance tradeoff.",
-    "What evaluation metrics would you use for a classification problem?",
-    "How do you feature engineer for a machine learning model?",
-    "Explain cross-validation and its importance.",
+  average: [
+    "Decent attempt. Try to provide more technical depth.",
+    "You're on the right track. Expand on the 'why' behind your answer.",
+    "Fair response. Practice structuring with intro → details → example.",
+  ],
+  weak: [
+    "This needs more depth. Review this topic and try again.",
+    "Consider studying this area more. Focus on core concepts first.",
+    "Keep practicing! Try explaining this to a friend for better understanding.",
   ],
 };
 
-const roles = Object.keys(interviewQuestions);
+const tips: Record<string, string[]> = {
+  technical: [
+    "Use the STAR method: Situation, Task, Action, Result",
+    "Include specific technical terms and concepts",
+    "Mention trade-offs and alternatives you considered",
+    "Give a concrete code example when possible",
+    "Explain your reasoning process, not just the answer",
+  ],
+  communication: [
+    "Start with a brief overview before diving into details",
+    "Use clear, concise language",
+    "Avoid filler words like 'um', 'like', 'you know'",
+    "Pause between key points for emphasis",
+    "Summarize your answer at the end",
+  ],
+  confidence: [
+    "Own your answer — avoid hedging with 'I think maybe...'",
+    "It's okay to say 'I'd need to research that, but here's my understanding...'",
+    "Practice answering aloud before interviews",
+    "Use confident language: 'In my experience...' or 'The approach I'd take is...'",
+  ],
+};
+
+function analyzeAnswer(answer: string, questionType: InterviewType): AnswerFeedback {
+  const words = answer.trim().split(/\s+/);
+  const wordCount = words.length;
+  const sentences = answer.split(/[.!?]+/).filter(Boolean);
+  const hasCodeTerms = /function|const|let|var|class|import|export|return|async|await|=>|\.map|\.filter|interface|type /i.test(answer);
+  const hasExamples = /for example|for instance|such as|like when|in my experience|I once|I built|I worked/i.test(answer);
+  const hasStructure = /first|second|third|additionally|moreover|however|in conclusion|to summarize|the main|key point/i.test(answer);
+
+  let technical = 4;
+  if (wordCount > 30) technical += 1;
+  if (wordCount > 60) technical += 1;
+  if (wordCount > 100) technical += 1;
+  if (hasCodeTerms) technical += 1;
+  if (hasExamples) technical += 1;
+  if (sentences.length >= 3) technical += 1;
+  technical = Math.min(10, technical);
+
+  let communication = 4;
+  if (wordCount > 20) communication += 1;
+  if (wordCount > 50) communication += 1;
+  if (hasStructure) communication += 2;
+  if (sentences.length >= 2) communication += 1;
+  if (hasExamples) communication += 1;
+  communication = Math.min(10, communication);
+
+  let confidence = 4;
+  const hedging = /i think maybe|i'm not sure|i guess|probably|might be|could be wrong/i.test(answer);
+  if (!hedging) confidence += 2;
+  if (wordCount > 40) confidence += 1;
+  if (wordCount > 80) confidence += 1;
+  if (hasExamples) confidence += 1;
+  if (/I built|I designed|I implemented|I led|In my experience/i.test(answer)) confidence += 1;
+  confidence = Math.min(10, confidence);
+
+  const avg = (technical + communication + confidence) / 3;
+  let category: keyof typeof feedbackTemplates;
+  if (avg >= 8) category = "excellent";
+  else if (avg >= 6) category = "good";
+  else if (avg >= 4) category = "average";
+  else category = "weak";
+
+  const tipPool = [
+    ...tips.technical.slice(0, 2),
+    ...tips.communication.slice(0, 2),
+    ...tips.confidence.slice(0, 1),
+  ];
+
+  const randomTip = tipPool[Math.floor(Math.random() * tipPool.length)];
+
+  return {
+    technical,
+    communication,
+    confidence,
+    tip: `${feedbackTemplates[category][Math.floor(Math.random() * feedbackTemplates[category].length)]} 💡 Tip: ${randomTip}`,
+  };
+}
 
 const MockInterviewPage = () => {
   const [selectedRole, setSelectedRole] = useState("");
+  const [interviewType, setInterviewType] = useState<InterviewType>("mixed");
+  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [started, setStarted] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [feedback, setFeedback] = useState<FinalFeedback | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [allFeedbacks, setAllFeedbacks] = useState<AnswerFeedback[]>([]);
+  const [timer, setTimer] = useState(0);
+  const [timerActive, setTimerActive] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isTyping]);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (timerActive) {
+      interval = setInterval(() => setTimer((t) => t + 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timerActive]);
+
+  const formatTime = (s: number) =>
+    `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+
+  const addBotMessage = useCallback((content: string, feedbackData?: AnswerFeedback) => {
+    setIsTyping(true);
+    setTimeout(() => {
+      setMessages((prev) => [
+        ...prev,
+        { role: "interviewer", content, timestamp: new Date(), feedback: feedbackData },
+      ]);
+      setIsTyping(false);
+    }, 800 + Math.random() * 600);
+  }, []);
 
   const startInterview = () => {
     if (!selectedRole) return;
+    const pool = questionBank[selectedRole][interviewType][difficulty];
+    const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, 6);
+    setQuestions(shuffled);
     setStarted(true);
     setQuestionIndex(0);
     setFeedback(null);
-    const firstQ = interviewQuestions[selectedRole][0];
+    setAllFeedbacks([]);
+    setTimer(0);
+    setTimerActive(true);
+
     setMessages([
-      { role: "interviewer", content: `Welcome! I'll be your interviewer today for the ${selectedRole} position. Let's begin.` },
-      { role: "interviewer", content: firstQ },
+      {
+        role: "system",
+        content: `Interview started — ${selectedRole} • ${interviewType} • ${difficulty}`,
+        timestamp: new Date(),
+      },
+      {
+        role: "interviewer",
+        content: `Hello! Welcome to your ${selectedRole} mock interview. I'll be asking you ${shuffled.length} ${interviewType} questions at ${difficulty} difficulty.\n\nTake your time with each answer. Ready? Let's begin!`,
+        timestamp: new Date(),
+      },
     ]);
+
+    setTimeout(() => {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "interviewer",
+          content: `**Question 1 of ${shuffled.length}:**\n\n${shuffled[0]}`,
+          timestamp: new Date(),
+        },
+      ]);
+    }, 1200);
   };
 
   const submitAnswer = () => {
-    if (!input.trim()) return;
-    const questions = interviewQuestions[selectedRole];
-    const newMessages: Message[] = [...messages, { role: "user", content: input }];
+    if (!input.trim() || isTyping) return;
+
+    const userMessage: Message = {
+      role: "user",
+      content: input,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+
+    const answerFeedback = analyzeAnswer(input, interviewType);
+    const newFeedbacks = [...allFeedbacks, answerFeedback];
+    setAllFeedbacks(newFeedbacks);
 
     const nextIndex = questionIndex + 1;
 
-    // Generate simple feedback scores
-    const wordCount = input.trim().split(/\s+/).length;
-    const technicalScore = Math.min(10, Math.max(3, Math.round(wordCount / 8)));
-    const commScore = Math.min(10, Math.max(4, Math.round(wordCount / 6)));
-    const confScore = Math.min(10, Math.max(3, Math.round(wordCount / 7)));
-
     if (nextIndex < questions.length) {
-      newMessages.push({
-        role: "interviewer",
-        content: `Good answer! Let me give you a quick score: Technical ${technicalScore}/10, Communication ${commScore}/10. \n\nNext question:`,
-      });
-      newMessages.push({ role: "interviewer", content: questions[nextIndex] });
+      // Per-answer feedback + next question
+      setIsTyping(true);
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "interviewer",
+            content: answerFeedback.tip,
+            timestamp: new Date(),
+            feedback: answerFeedback,
+          },
+        ]);
+        setIsTyping(false);
+
+        setTimeout(() => {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "interviewer",
+              content: `**Question ${nextIndex + 1} of ${questions.length}:**\n\n${questions[nextIndex]}`,
+              timestamp: new Date(),
+            },
+          ]);
+        }, 600);
+      }, 1000 + Math.random() * 500);
+
       setQuestionIndex(nextIndex);
     } else {
-      newMessages.push({
-        role: "interviewer",
-        content: "Great job! That concludes our interview. Here's your detailed feedback:",
-      });
-      setFeedback({
-        technical: technicalScore,
-        communication: commScore,
-        confidence: confScore,
-        strengths: ["Good problem-solving approach", "Clear explanations", "Relevant examples used"],
-        improvements: ["Add more technical depth", "Structure answers using STAR method", "Practice concise delivery"],
-        betterAnswer: "Consider structuring your answer with a brief overview, then key technical details, followed by a real-world example.",
-      });
-    }
+      // Final feedback
+      setTimerActive(false);
+      const avgTech = Math.round(newFeedbacks.reduce((a, f) => a + f.technical, 0) / newFeedbacks.length);
+      const avgComm = Math.round(newFeedbacks.reduce((a, f) => a + f.communication, 0) / newFeedbacks.length);
+      const avgConf = Math.round(newFeedbacks.reduce((a, f) => a + f.confidence, 0) / newFeedbacks.length);
+      const overall = Math.round((avgTech + avgComm + avgConf) / 3);
 
-    setMessages(newMessages);
-    setInput("");
+      const strengths: string[] = [];
+      const improvements: string[] = [];
+      if (avgTech >= 7) strengths.push("Strong technical knowledge");
+      else improvements.push("Deepen technical understanding with examples");
+      if (avgComm >= 7) strengths.push("Clear and structured communication");
+      else improvements.push("Structure answers: overview → details → example");
+      if (avgConf >= 7) strengths.push("Confident delivery");
+      else improvements.push("Use confident language, avoid hedging phrases");
+      if (newFeedbacks.length >= 4) strengths.push("Good persistence through all questions");
+      if (overall >= 7) strengths.push("Well-rounded interview performance");
+      else improvements.push("Practice with more mock interviews regularly");
+
+      setIsTyping(true);
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "interviewer",
+            content: `That concludes our interview! 🎉\n\nYou answered ${newFeedbacks.length} questions in ${formatTime(timer)}. Check the feedback panel for your detailed scores and improvement tips.`,
+            timestamp: new Date(),
+          },
+        ]);
+        setIsTyping(false);
+        setFeedback({
+          technical: avgTech,
+          communication: avgComm,
+          confidence: avgConf,
+          overall,
+          strengths,
+          improvements,
+          betterAnswer:
+            "Use the STAR method (Situation, Task, Action, Result) for behavioral questions. For technical questions, explain the concept, give an example, and discuss trade-offs.",
+          totalQuestions: questions.length,
+          answeredQuestions: newFeedbacks.length,
+        });
+      }, 1200);
+    }
   };
 
   const endInterview = () => {
@@ -124,138 +528,372 @@ const MockInterviewPage = () => {
     setMessages([]);
     setFeedback(null);
     setSelectedRole("");
+    setAllFeedbacks([]);
+    setTimerActive(false);
+    setTimer(0);
   };
+
+  const scoreColor = (score: number) =>
+    score >= 8 ? "text-success" : score >= 5 ? "text-warning" : "text-destructive";
+
+  const scoreLabel = (score: number) =>
+    score >= 8 ? "Excellent" : score >= 6 ? "Good" : score >= 4 ? "Fair" : "Needs Work";
 
   return (
     <AppLayout>
       <PageHeader
         title="AI Mock Interview"
-        description="Practice interviews with our AI interviewer and get instant feedback"
+        description="Practice interviews with our AI interviewer and get real-time feedback"
         icon={<MessageSquare className="h-6 w-6 text-primary-foreground" />}
       />
 
       {!started ? (
-        <div className="rounded-xl bg-card p-6 shadow-card border border-border max-w-lg">
-          <h3 className="font-heading text-lg font-semibold text-foreground mb-4">Select a Role</h3>
-          <div className="grid gap-3 mb-4">
-            {roles.map((r) => (
-              <button
-                key={r}
-                onClick={() => setSelectedRole(r)}
-                className={`rounded-lg border p-4 text-left transition-all
-                  ${selectedRole === r ? "border-primary bg-sidebar-accent" : "border-border hover:border-primary/40"}`}
-              >
-                <p className="font-medium text-foreground">{r}</p>
-                <p className="text-xs text-muted-foreground">{interviewQuestions[r].length} questions</p>
-              </button>
-            ))}
+        <div className="max-w-2xl space-y-6">
+          {/* Role Selection */}
+          <div className="rounded-xl bg-card p-6 shadow-card border border-border">
+            <h3 className="font-heading text-lg font-semibold text-foreground mb-4">1. Select a Role</h3>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {roles.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setSelectedRole(r)}
+                  className={`rounded-lg border p-4 text-left transition-all
+                    ${selectedRole === r
+                      ? "border-primary bg-sidebar-accent shadow-card"
+                      : "border-border hover:border-primary/40 hover:bg-secondary/50"
+                    }`}
+                >
+                  <p className="font-medium text-foreground">{r}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {questionBank[r].technical.medium.length + questionBank[r].behavioral.medium.length}+ questions available
+                  </p>
+                </button>
+              ))}
+            </div>
           </div>
-          <Button onClick={startInterview} disabled={!selectedRole} className="gradient-primary text-primary-foreground">
-            Start Interview
+
+          {/* Interview Type */}
+          <div className="rounded-xl bg-card p-6 shadow-card border border-border">
+            <h3 className="font-heading text-lg font-semibold text-foreground mb-4">2. Interview Type</h3>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {([
+                { value: "technical" as InterviewType, icon: Zap, label: "Technical", desc: "Coding & concepts" },
+                { value: "behavioral" as InterviewType, icon: Users, label: "Behavioral", desc: "Soft skills & stories" },
+                { value: "mixed" as InterviewType, icon: Brain, label: "Mixed", desc: "Both types combined" },
+              ]).map(({ value, icon: Icon, label, desc }) => (
+                <button
+                  key={value}
+                  onClick={() => setInterviewType(value)}
+                  className={`rounded-lg border p-4 text-left transition-all
+                    ${interviewType === value
+                      ? "border-primary bg-sidebar-accent shadow-card"
+                      : "border-border hover:border-primary/40 hover:bg-secondary/50"
+                    }`}
+                >
+                  <Icon className="h-5 w-5 text-primary mb-2" />
+                  <p className="font-medium text-foreground">{label}</p>
+                  <p className="text-xs text-muted-foreground">{desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Difficulty */}
+          <div className="rounded-xl bg-card p-6 shadow-card border border-border">
+            <h3 className="font-heading text-lg font-semibold text-foreground mb-4">3. Difficulty Level</h3>
+            <div className="flex gap-2">
+              {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDifficulty(d)}
+                  className={`rounded-lg border px-6 py-3 text-sm font-medium capitalize transition-all
+                    ${difficulty === d
+                      ? "border-primary bg-sidebar-accent text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/40"
+                    }`}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Button
+            onClick={startInterview}
+            disabled={!selectedRole}
+            size="lg"
+            className="gradient-primary text-primary-foreground"
+          >
+            <ChevronRight className="mr-2 h-5 w-5" />
+            Start Mock Interview
           </Button>
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Chat */}
-          <div className="lg:col-span-2 rounded-xl bg-card shadow-card border border-border flex flex-col" style={{ height: "70vh" }}>
+          {/* Chat Panel */}
+          <div className="lg:col-span-2 rounded-xl bg-card shadow-card border border-border flex flex-col" style={{ height: "75vh" }}>
+            {/* Header */}
             <div className="border-b border-border px-5 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-primary" />
-                <span className="font-heading font-semibold text-foreground">AI Interviewer</span>
-                <span className="text-xs text-muted-foreground">• {selectedRole}</span>
+              <div className="flex items-center gap-3">
+                <div className="gradient-primary rounded-lg p-1.5">
+                  <Bot className="h-4 w-4 text-primary-foreground" />
+                </div>
+                <div>
+                  <span className="font-heading font-semibold text-foreground text-sm">AI Interviewer</span>
+                  <div className="flex gap-2 mt-0.5">
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{selectedRole}</Badge>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 capitalize">{difficulty}</Badge>
+                  </div>
+                </div>
               </div>
-              <Button variant="outline" size="sm" onClick={endInterview}>End Interview</Button>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5" />
+                  {formatTime(timer)}
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  Q{Math.min(questionIndex + 1, questions.length)}/{questions.length}
+                </span>
+                <Button variant="outline" size="sm" onClick={endInterview}>End</Button>
+              </div>
             </div>
 
+            {/* Progress */}
+            <div className="px-5 pt-2">
+              <Progress value={((questionIndex + (feedback ? 1 : 0)) / questions.length) * 100} className="h-1.5" />
+            </div>
+
+            {/* Messages */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              {messages.map((msg, i) => (
-                <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : ""}`}>
-                  {msg.role === "interviewer" && (
-                    <div className="gradient-primary rounded-full p-2 h-8 w-8 flex items-center justify-center shrink-0">
-                      <Bot className="h-4 w-4 text-primary-foreground" />
+              {messages.map((msg, i) => {
+                if (msg.role === "system") {
+                  return (
+                    <div key={i} className="flex justify-center">
+                      <span className="text-xs text-muted-foreground bg-muted rounded-full px-3 py-1">
+                        {msg.content}
+                      </span>
                     </div>
-                  )}
-                  <div className={`rounded-xl px-4 py-3 max-w-[80%] text-sm whitespace-pre-wrap
-                    ${msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-foreground"}`}>
-                    {msg.content}
+                  );
+                }
+
+                return (
+                  <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : ""}`}>
+                    {msg.role === "interviewer" && (
+                      <div className="gradient-primary rounded-full p-2 h-8 w-8 flex items-center justify-center shrink-0 mt-1">
+                        <Bot className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                    )}
+                    <div className="max-w-[80%] space-y-2">
+                      <div
+                        className={`rounded-2xl px-4 py-3 text-sm leading-relaxed
+                          ${msg.role === "user"
+                            ? "bg-primary text-primary-foreground rounded-br-md"
+                            : "bg-secondary text-foreground rounded-bl-md"
+                          }`}
+                      >
+                        {msg.content.split("\n").map((line, li) => (
+                          <p key={li} className={li > 0 ? "mt-2" : ""}>
+                            {line.startsWith("**") && line.endsWith("**")
+                              ? <strong>{line.replace(/\*\*/g, "")}</strong>
+                              : line}
+                          </p>
+                        ))}
+                      </div>
+                      {msg.feedback && (
+                        <div className="flex gap-3 text-xs text-muted-foreground">
+                          <span className={scoreColor(msg.feedback.technical)}>
+                            Tech: {msg.feedback.technical}/10
+                          </span>
+                          <span className={scoreColor(msg.feedback.communication)}>
+                            Comm: {msg.feedback.communication}/10
+                          </span>
+                          <span className={scoreColor(msg.feedback.confidence)}>
+                            Conf: {msg.feedback.confidence}/10
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {msg.role === "user" && (
+                      <div className="rounded-full bg-muted p-2 h-8 w-8 flex items-center justify-center shrink-0 mt-1">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    )}
                   </div>
-                  {msg.role === "user" && (
-                    <div className="rounded-full bg-muted p-2 h-8 w-8 flex items-center justify-center shrink-0">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  )}
+                );
+              })}
+
+              {isTyping && (
+                <div className="flex gap-3">
+                  <div className="gradient-primary rounded-full p-2 h-8 w-8 flex items-center justify-center shrink-0">
+                    <Bot className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                  <div className="bg-secondary rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Typing...</span>
+                  </div>
                 </div>
-              ))}
+              )}
+
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Input */}
             {!feedback && (
-              <div className="border-t border-border p-4 flex gap-2">
-                <Input
-                  placeholder="Type your answer..."
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && submitAnswer()}
-                />
-                <Button onClick={submitAnswer} className="gradient-primary text-primary-foreground">
-                  <Send className="h-4 w-4" />
-                </Button>
+              <div className="border-t border-border p-4">
+                <div className="flex gap-2">
+                  <Textarea
+                    ref={textareaRef}
+                    placeholder="Type your answer... (Enter to send, Shift+Enter for new line)"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        submitAnswer();
+                      }
+                    }}
+                    className="min-h-[60px] max-h-[120px] resize-none"
+                    disabled={isTyping}
+                  />
+                  <Button
+                    onClick={submitAnswer}
+                    disabled={!input.trim() || isTyping}
+                    className="gradient-primary text-primary-foreground self-end"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  💡 Write detailed answers for better feedback. Include examples and technical terms.
+                </p>
               </div>
             )}
           </div>
 
-          {/* Feedback Panel */}
-          {feedback && (
-            <div className="rounded-xl bg-card p-5 shadow-card border border-border h-fit">
-              <h3 className="font-heading text-lg font-semibold text-foreground mb-4">Interview Feedback</h3>
-
-              <div className="space-y-3 mb-4">
-                {[
-                  { label: "Technical Knowledge", score: feedback.technical },
-                  { label: "Communication", score: feedback.communication },
-                  { label: "Confidence", score: feedback.confidence },
-                ].map((item) => (
-                  <div key={item.label}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-muted-foreground">{item.label}</span>
-                      <span className="font-medium text-foreground">{item.score}/10</span>
+          {/* Sidebar: Live Score or Final Feedback */}
+          <div className="space-y-4">
+            {/* Live scoring during interview */}
+            {!feedback && allFeedbacks.length > 0 && (
+              <div className="rounded-xl bg-card p-5 shadow-card border border-border">
+                <h3 className="font-heading text-sm font-semibold text-foreground mb-3">Live Score</h3>
+                <div className="space-y-3">
+                  {[
+                    {
+                      label: "Technical",
+                      score: Math.round(allFeedbacks.reduce((a, f) => a + f.technical, 0) / allFeedbacks.length),
+                    },
+                    {
+                      label: "Communication",
+                      score: Math.round(allFeedbacks.reduce((a, f) => a + f.communication, 0) / allFeedbacks.length),
+                    },
+                    {
+                      label: "Confidence",
+                      score: Math.round(allFeedbacks.reduce((a, f) => a + f.confidence, 0) / allFeedbacks.length),
+                    },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-muted-foreground">{item.label}</span>
+                        <span className={`font-medium ${scoreColor(item.score)}`}>{item.score}/10</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted">
+                        <div className="h-1.5 rounded-full gradient-primary transition-all duration-500" style={{ width: `${item.score * 10}%` }} />
+                      </div>
                     </div>
-                    <div className="h-2 rounded-full bg-muted">
-                      <div
-                        className="h-2 rounded-full gradient-primary transition-all"
-                        style={{ width: `${item.score * 10}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-3">
+                  Based on {allFeedbacks.length} answer{allFeedbacks.length > 1 ? "s" : ""}
+                </p>
               </div>
+            )}
 
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-foreground mb-2">✅ Strengths</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  {feedback.strengths.map((s) => <li key={s}>• {s}</li>)}
+            {/* Quick tips */}
+            {!feedback && (
+              <div className="rounded-xl bg-card p-5 shadow-card border border-border">
+                <h3 className="font-heading text-sm font-semibold text-foreground mb-3">💡 Interview Tips</h3>
+                <ul className="space-y-2 text-xs text-muted-foreground">
+                  <li>• Structure answers clearly with intro → details → example</li>
+                  <li>• Use specific technical terminology</li>
+                  <li>• Include real-world examples from projects</li>
+                  <li>• Discuss trade-offs and alternatives</li>
+                  <li>• Keep answers focused and concise (2-3 minutes)</li>
                 </ul>
               </div>
+            )}
 
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-foreground mb-2">🎯 Improve</h4>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  {feedback.improvements.map((s) => <li key={s}>• {s}</li>)}
-                </ul>
+            {/* Final Feedback */}
+            {feedback && (
+              <div className="rounded-xl bg-card p-5 shadow-card border border-border">
+                <div className="flex items-center gap-2 mb-4">
+                  <Award className="h-5 w-5 text-primary" />
+                  <h3 className="font-heading text-lg font-semibold text-foreground">Final Score</h3>
+                </div>
+
+                {/* Overall Score */}
+                <div className="text-center mb-5 py-4 rounded-lg bg-secondary">
+                  <p className={`font-heading text-4xl font-bold ${scoreColor(feedback.overall)}`}>
+                    {feedback.overall}/10
+                  </p>
+                  <p className={`text-sm font-medium mt-1 ${scoreColor(feedback.overall)}`}>
+                    {scoreLabel(feedback.overall)}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {feedback.answeredQuestions}/{feedback.totalQuestions} questions • {formatTime(timer)}
+                  </p>
+                </div>
+
+                {/* Score Breakdown */}
+                <div className="space-y-3 mb-5">
+                  {[
+                    { label: "Technical", score: feedback.technical },
+                    { label: "Communication", score: feedback.communication },
+                    { label: "Confidence", score: feedback.confidence },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-muted-foreground">{item.label}</span>
+                        <span className={`font-medium ${scoreColor(item.score)}`}>
+                          {item.score}/10 — {scoreLabel(item.score)}
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted">
+                        <div className="h-2 rounded-full gradient-primary transition-all duration-700" style={{ width: `${item.score * 10}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Strengths */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-1.5">
+                    <ThumbsUp className="h-3.5 w-3.5 text-success" /> Strengths
+                  </h4>
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    {feedback.strengths.map((s) => <li key={s}>• {s}</li>)}
+                  </ul>
+                </div>
+
+                {/* Improvements */}
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-foreground mb-2">🎯 Areas to Improve</h4>
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    {feedback.improvements.map((s) => <li key={s}>• {s}</li>)}
+                  </ul>
+                </div>
+
+                {/* Better Answer Tip */}
+                <div className="rounded-lg bg-secondary p-3 mb-4">
+                  <h4 className="text-sm font-medium text-foreground mb-1">💡 Pro Tip</h4>
+                  <p className="text-xs text-muted-foreground">{feedback.betterAnswer}</p>
+                </div>
+
+                <Button onClick={endInterview} className="w-full gradient-primary text-primary-foreground">
+                  <RotateCcw className="mr-2 h-4 w-4" /> Practice Again
+                </Button>
               </div>
-
-              <div className="rounded-lg bg-secondary p-3">
-                <h4 className="text-sm font-medium text-foreground mb-1">💡 Better Answer Tip</h4>
-                <p className="text-xs text-muted-foreground">{feedback.betterAnswer}</p>
-              </div>
-
-              <Button onClick={endInterview} className="w-full mt-4" variant="outline">
-                Practice Again
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </AppLayout>
