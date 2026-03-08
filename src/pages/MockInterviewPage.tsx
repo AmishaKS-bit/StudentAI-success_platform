@@ -455,8 +455,15 @@ const MockInterviewPage = () => {
   const [allFeedbacks, setAllFeedbacks] = useState<AnswerFeedback[]>([]);
   const [timer, setTimer] = useState(0);
   const [timerActive, setTimerActive] = useState(false);
+  const [responseMode, setResponseMode] = useState<"text" | "voice" | "camera">("text");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
